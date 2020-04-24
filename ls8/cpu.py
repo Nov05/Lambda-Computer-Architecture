@@ -20,6 +20,7 @@ PRA = 0b01001000
 IRET = 0b00010011
 JEQ = 0b01010101
 JNE = 0b01010110
+# ADDI = 0b
 # ALU
 ADD = 0b10100000 # 00000aaa 00000bbb
 SUB = 0b10100011 # 00000aaa 00000bbb
@@ -34,6 +35,7 @@ SHR = 0b10101101 # 00000aaa 00000bbb
 CMP = 0b10100111 # 00000aaa 00000bbb
 INC = 0b01100101 # 00000rrr
 DEC = 0b01100110 # 00000rrr
+ADDI = 0b10101110 # 00000rrr, add an immediate value
 
 
 class CPU:
@@ -75,6 +77,7 @@ class CPU:
             NOT: self.op_alu_,
             INC: self.op_alu_,
             DEC: self.op_alu_,
+            ADDI: self.op_addi,
         }
 
     def load(self):
@@ -272,6 +275,11 @@ class CPU:
         self.fl = self.ram[self.reg[self.SP]] # pop
         self.reg[self.SP] += 1
         self.pc = self.ram[self.reg[self.SP]] # pop return address
+    def op_addi(self, op):
+        '''Add an immediate value to a register'''
+        reg_num = self.ram_read(self.pc+1)
+        self.reg[reg_num] += self.ram_read(self.pc+2)
+        self.pc += 1
 
 
     def run(self):
