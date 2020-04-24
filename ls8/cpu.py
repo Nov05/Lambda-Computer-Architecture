@@ -267,7 +267,11 @@ class CPU:
             3. The return address is popped off the stack and stored in PC.
             4. Interrupts are re-enabled.'''
         for i in range(6):
-
+            self.reg[6-i] = self.ram[self.reg[self.SP]] # pop
+            self.reg[self.SP] += 1
+        self.fl = self.ram[self.reg[self.SP]] # pop
+        self.reg[self.SP] += 1
+        self.pc = self.ram[self.reg[self.SP]] # pop return address
 
 
     def run(self):
