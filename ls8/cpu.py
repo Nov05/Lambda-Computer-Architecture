@@ -5,6 +5,7 @@
 """CPU functionality."""
 import sys
 from datetime import datetime
+import msvcrt # for keyboard interrupt in Windows OS
 
 
 LDI = 0b10000010
@@ -37,6 +38,10 @@ CMP = 0b10100111 # 00000aaa 00000bbb
 INC = 0b01100101 # 00000rrr
 DEC = 0b01100110 # 00000rrr
 ADDI = 0b10101110 # 00000rrr iiiiiiii, extensional op to add an immediate value
+
+# interrupt types
+TIMER_INTERRUPT = 0
+KEYBOARD_INTERRUPT = 1
 
 
 class CPU:
@@ -284,9 +289,13 @@ class CPU:
         self.pc += 1
 
 
-    def timer_interrupt(self):
-        '''This interrupt triggers once per second.'''
-        self.reg[self.IS] = 0b00000001 # timer interrupt
+    def interrupt(self, mode=TIMER_INTERRUPT):
+
+        '''Timer interrupt triggers once per second.'''
+        if mode == TIMER_INTERRUPT: self.reg[self.IS] = 0b00000001 # timer interrupt
+        elif mode == KEYBOARD_INTERRUPT: self.reg[self.IS] = 0b00000010 # keyboard interrupt
+        else: raise Exception(f'Wrong interrupt mode {mode}')
+
         masked_interrupts = self.reg[self.IM] & self.reg[self.IS]
         for i in range(8):
             # Right shift interrupts down by i, then mask with 1 to see if that bit was set
@@ -294,7 +303,8 @@ class CPU:
         
             if interrupt_happened:
                 # clear timer interrupt status
-                self.reg[self.IS] = self.reg[self.IS] & 0b11111110
+                if mode == TIMER_INTERRUPT: self.reg[self.IS] = self.reg[self.IS] & 0b11111110
+                else: self.reg[self.IS] = self.reg[self.IS] & 0b11111101
                 # push PC register
                 self.reg[self.SP] -= 1
                 self.ram[self.reg[self.SP]] = self.pc
@@ -307,9 +317,10 @@ class CPU:
                     self.ram[self.reg[self.SP]] = self.reg[i]
                 # look up the interrupt handler address in the interrupt 
                 # vector table at address 0xF8, and set the PC to it
-                self.pc = self.ram_read(0xf8)
+                if mode == TIMER_INTERRUPT: addr = 0xf8
+                else: addr = 0xf9
+                self.pc = self.ram_read(addr)
                 
-
 
     def run(self):
         """Run the CPU."""
@@ -320,10 +331,17 @@ class CPU:
         time_past = datetime.now()
 
         while self.running:
+            '''timer interrupt'''
             # if 1 sec is elapsed
             if (datetime.now() - time_past).seconds >= 1:
-                self.timer_interrupt()
+                self.interrupt(mode=TIMER_INTERRUPT)
                 time_past = datetime.now() # reset timer
+
+            '''keyboard interrupt'''
+            if msvcrt.kbhit():
+                # store value of the key pressed at '0xf4'
+                self.ram_write(0xf4, ord(msvcrt.getch())) 
+                self.interrupt(mode=KEYBOARD_INTERRUPT)
 
             op = self.ram_read(self.pc)
             if op not in self.ops:
