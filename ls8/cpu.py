@@ -2,6 +2,12 @@
 # https://github.com/Nov05/Lambda-School-Data-Science/blob/master/daily%20notes/2020-03-23%20CS%20Week%207%20Computer%20Architecture.md
 # https://github.com/Nov05/Lambda-Computer-Architecture
 
+######################################
+# debug mode
+debug = False
+trace = False
+######################################
+
 """CPU functionality."""
 import sys
 from datetime import datetime
@@ -22,7 +28,6 @@ PRA = 0b01001000
 IRET = 0b00010011
 JEQ = 0b01010101
 JNE = 0b01010110
-# ADDI = 0b
 # ALU
 ADD = 0b10100000 # 00000aaa 00000bbb
 SUB = 0b10100011 # 00000aaa 00000bbb
@@ -146,6 +151,7 @@ class CPU:
 
     def alu(self, op, reg_a, reg_b):
         """ALU operations."""
+        if debug: print(f'ALU: R{reg_a}:{self.reg[reg_a]}, R{reg_b}:{self.reg[reg_b]}')
         # if op == ADD:
         #     self.reg[reg_a] += self.reg[reg_b]
         # elif op == SUB:
@@ -177,6 +183,8 @@ class CPU:
         
     def alu_(self, op, reg_num):
         '''ALU operations'''
+        if debug: print(f'ALU: R{reg_num}:{self.reg[reg_num]}')
+
         def alu_not(): self.reg[reg_num] = ~self.reg[reg_num]
         def alu_inc(): self.reg[reg_num] += 1
         def alu_dec(): self.reg[reg_num] -= 1
@@ -191,8 +199,10 @@ class CPU:
 
 
     def op_ldi(self, op): # e.g. LDI R0, 8
+        '''Load immidiate value'''
         reg_num = self.ram_read(self.pc+1)
         value = self.ram_read(self.pc+2)
+        if debug: print(f'{self.pc} LDI: R{reg_num} <- {value}')
         self.reg[reg_num] = value
         self.pc += 3
     def op_ld(self, op):
@@ -201,12 +211,14 @@ class CPU:
         reg_a = self.ram_read(self.pc+1)
         reg_b = self.ram_read(self.pc+2) # RAM address
         self.reg[reg_a] = self.ram_read(self.reg[reg_b])
+        if debug: print(f'LD: R{reg_a} <- R{reg_b}:{self.ram_read(self.reg[reg_b])}')
         self.pc += 3
     def op_prn(self, op): # e.g. PRN R0
         reg_num = self.ram_read(self.pc+1)
         print(self.reg[reg_num])
         self.pc += 2
     def op_hlt(self, op): # Halt the CPU (and exit the emulator).
+        if debug: print(f'HLT')
         self.running = False
         sys.exit()
     def op_alu(self, op):  # e.g. add, sub, div, mul
@@ -228,6 +240,7 @@ class CPU:
         self.reg[reg_num] = self.ram[self.reg[self.SP]]
         self.reg[self.SP] += 1
         self.pc += 2
+        if debug: print(f'POP: R{reg_num} <- {self.reg[reg_num]}')
     def op_jmp(self, op): # Jump
         reg_num = self.ram_read(self.pc+1)
         self.pc = self.reg[reg_num]
@@ -239,9 +252,11 @@ class CPU:
             self.pc = self.reg[reg_num]
         else:
             self.pc += 2
+        if debug: print(f'JEQ: LGE:{self.fl:03b}')
     def op_jne(self, op): # Jump if not equal
         '''If Equal flag is clear (false, 0), jump to the 
            address stored in the given register.'''
+        if debug: print(f'{self.pc}\t JNE: LGE:{self.fl:03b}')
         if not (self.fl & 1):
             reg_num = self.ram_read(self.pc+1)
             self.pc = self.reg[reg_num]
@@ -254,9 +269,12 @@ class CPU:
         self.ram[self.reg[self.SP]] = self.pc + 2 # Push return address to stack
         reg_num = self.ram_read(self.pc+1)
         self.pc = self.reg[reg_num] # Jump to subroutine address
+        if debug: print(f'CALL: {self.pc}')
     def op_ret(self, op): # Return
-        self.pc = self.ram[self.reg[self.SP]] # Pop return address and jump there
+        '''Pop return address and jump there'''
+        self.pc = self.ram[self.reg[self.SP]]
         self.reg[self.SP] += 1
+        if debug: print(f'RET: {self.pc}')
     def op_st(self, op): # store value to RAM
         reg_a = self.ram_read(self.pc+1)  # RAM address
         reg_b = self.ram_read(self.pc+2)  # value
@@ -266,7 +284,8 @@ class CPU:
         '''Print to the console the ASCII character 
            corresponding to the value in the register.'''
         reg_num = self.ram_read(self.pc+1)
-        print(chr(self.reg[reg_num]))
+        if debug: print(f'PRA: R{reg_num}:{self.reg[reg_num]}')
+        print(chr(self.reg[reg_num]), end='')
         self.pc += 2
     def op_iret(self, op):
         '''Return from an interrupt handler.
@@ -282,6 +301,7 @@ class CPU:
         self.reg[self.SP] += 1
         self.pc = self.ram[self.reg[self.SP]] # pop return address
         self.reg[self.SP] += 1
+        if debug: print(f'IRET: {self.pc}')
     def op_addi(self, op):
         '''Add an immediate value to a register'''
         reg_num = self.ram_read(self.pc+1)
@@ -290,7 +310,6 @@ class CPU:
 
 
     def interrupt(self, mode=TIMER_INTERRUPT):
-
         '''Timer interrupt triggers once per second.'''
         if mode == TIMER_INTERRUPT: self.reg[self.IS] = 0b00000001 # timer interrupt
         elif mode == KEYBOARD_INTERRUPT: self.reg[self.IS] = 0b00000010 # keyboard interrupt
@@ -325,7 +344,7 @@ class CPU:
     def run(self):
         """Run the CPU."""
         self.running = True
-        self.trace()
+        if trace: self.trace()
 
         # set timer for interrupt
         time_past = datetime.now()
@@ -348,4 +367,4 @@ class CPU:
                 print(self.pc)
                 raise Exception(f'Unsupported operation {bin(op)}')
             self.ops[op](op)
-            # self.trace()       
+            if trace: self.trace()       
