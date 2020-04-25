@@ -4,6 +4,7 @@
 
 """CPU functionality."""
 import sys
+from datetime import datetime
 
 
 LDI = 0b10000010
@@ -12,7 +13,7 @@ PRN = 0b01000111
 HLT = 0b00000001
 PUSH = 0b01000101
 POP = 0b01000110
-JMP = 0b01010100
+JMP = 0b01010100 # 00000rrr
 CALL = 0b01010000
 RET = 0b00010001
 ST = 0b10000100
@@ -35,7 +36,7 @@ SHR = 0b10101101 # 00000aaa 00000bbb
 CMP = 0b10100111 # 00000aaa 00000bbb
 INC = 0b01100101 # 00000rrr
 DEC = 0b01100110 # 00000rrr
-ADDI = 0b10101110 # 00000rrr, add an immediate value
+ADDI = 0b10101110 # 00000rrr iiiiiiii, extensional op to add an immediate value
 
 
 class CPU:
@@ -53,7 +54,7 @@ class CPU:
         self.SP = 7 # register for Stack Pointer
         self.reg[self.SP] = 0xF4 # Stack Pointer initial position
 
-        # brach tables
+        # brach table
         self.ops = {
             LDI: self.op_ldi,
             LD: self.op_ld,
@@ -119,9 +120,9 @@ class CPU:
         Handy function to print out the CPU state. You might want to call this
         from run() if you need help debugging.
         """
-        print(f"TRACE: %02X | %02X %02X %02X |" % (
+        print(f"TRACE: %02X %02X | %02X %02X %02X |" % (
             self.pc,
-            #self.fl,
+            self.fl,
             #self.ie,
             self.ram_read(self.pc),
             self.ram_read(self.pc + 1),
@@ -190,8 +191,8 @@ class CPU:
         self.reg[reg_num] = value
         self.pc += 3
     def op_ld(self, op):
-        '''Loads registerA with the value at the 
-           memory address stored in registerB.'''
+        '''Loads register A with the value at the 
+           memory address stored in register B.'''
         reg_a = self.ram_read(self.pc+1)
         reg_b = self.ram_read(self.pc+2) # RAM address
         self.reg[reg_a] = self.ram_read(self.reg[reg_b])
@@ -225,7 +226,7 @@ class CPU:
     def op_jmp(self, op): # Jump
         reg_num = self.ram_read(self.pc+1)
         self.pc = self.reg[reg_num]
-    def op_jeq(self, op):
+    def op_jeq(self, op): # Jump if equal
         '''If Equal flag is set (true), jump to the 
            address stored in the given register.'''
         if (self.fl & 1):
@@ -233,7 +234,7 @@ class CPU:
             self.pc = self.reg[reg_num]
         else:
             self.pc += 2
-    def op_jne(self, op):
+    def op_jne(self, op): # Jump if not equal
         '''If Equal flag is clear (false, 0), jump to the 
            address stored in the given register.'''
         if not (self.fl & 1):
@@ -241,7 +242,7 @@ class CPU:
             self.pc = self.reg[reg_num]
         else:
             self.pc += 2
-    def op_call(self, op): # Call
+    def op_call(self, op): # Call subroutine
         '''Calls a subroutine (function) at the 
            address stored in the register.'''
         self.reg[self.SP] -= 1
@@ -255,7 +256,7 @@ class CPU:
         reg_a = self.ram_read(self.pc+1)  # RAM address
         reg_b = self.ram_read(self.pc+2)  # value
         self.ram[self.reg[reg_a]] = self.reg[reg_b]
-        self.pc += 2
+        self.pc += 3
     def op_pra(self, op): # pseudo-instruction
         '''Print to the console the ASCII character 
            corresponding to the value in the register.'''
@@ -270,11 +271,12 @@ class CPU:
             3. The return address is popped off the stack and stored in PC.
             4. Interrupts are re-enabled.'''
         for i in range(6):
-            self.reg[6-i] = self.ram[self.reg[self.SP]] # pop
+            self.reg[5-i] = self.ram[self.reg[self.SP]] # pop register
             self.reg[self.SP] += 1
-        self.fl = self.ram[self.reg[self.SP]] # pop
+        self.fl = self.ram[self.reg[self.SP]] # pop FL
         self.reg[self.SP] += 1
         self.pc = self.ram[self.reg[self.SP]] # pop return address
+        self.reg[self.SP] += 1
     def op_addi(self, op):
         '''Add an immediate value to a register'''
         reg_num = self.ram_read(self.pc+1)
@@ -282,14 +284,50 @@ class CPU:
         self.pc += 1
 
 
+    def timer_interrupt(self):
+        '''This interrupt triggers once per second.'''
+        self.reg[self.IS] = 0b00000001 # timer interrupt
+        masked_interrupts = self.reg[self.IM] & self.reg[self.IS]
+        for i in range(8):
+            # Right shift interrupts down by i, then mask with 1 to see if that bit was set
+            interrupt_happened = ((masked_interrupts >> i) & 1) == 1
+        
+            if interrupt_happened:
+                # clear timer interrupt status
+                self.reg[self.IS] = self.reg[self.IS] & 0b11111110
+                # push PC register
+                self.reg[self.SP] -= 1
+                self.ram[self.reg[self.SP]] = self.pc
+                # push FL register
+                self.reg[self.SP] -= 1
+                self.ram[self.reg[self.SP]] = self.fl
+                # registers R0-R6 are pushed on the stack in that order
+                for i in range(6):
+                    self.reg[self.SP] -= 1
+                    self.ram[self.reg[self.SP]] = self.reg[i]
+                # look up the interrupt handler address in the interrupt 
+                # vector table at address 0xF8, and set the PC to it
+                self.pc = self.ram_read(0xf8)
+                
+
+
     def run(self):
         """Run the CPU."""
         self.running = True
-        # self.trace()
+        self.trace()
+
+        # set timer for interrupt
+        time_past = datetime.now()
 
         while self.running:
+            # if 1 sec is elapsed
+            if (datetime.now() - time_past).seconds >= 1:
+                self.timer_interrupt()
+                time_past = datetime.now() # reset timer
+
             op = self.ram_read(self.pc)
             if op not in self.ops:
+                print(self.pc)
                 raise Exception(f'Unsupported operation {bin(op)}')
-            self.ops[op](op) 
+            self.ops[op](op)
             # self.trace()       

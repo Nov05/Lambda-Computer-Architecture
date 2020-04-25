@@ -22,9 +22,9 @@ OR   10101010 00000aaa 00000bbb
 XOR  10101011 00000aaa 00000bbb
 SHL  10101100 00000aaa 00000bbb
 SHR  10101101 00000aaa 00000bbb
-
-ADDI 10101110 00000rrr # added by nov05
 ```
+
+**ADDI 10101110 00000rrr iiiiiiii** # extension op added by nov05
 
 ## PC mutators
 ```
