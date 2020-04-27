@@ -1,7 +1,4 @@
-
-# https://github.com/Nov05/Lambda-School-Data-Science/blob/master/daily%20notes/2020-03-23%20CS%20Week%207%20Computer%20Architecture.md
 # https://github.com/Nov05/Lambda-Computer-Architecture
-
 ######################################
 # debug mode
 debug = False
