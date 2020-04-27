@@ -202,7 +202,7 @@ class CPU:
         '''Load immidiate value'''
         reg_num = self.ram_read(self.pc+1)
         value = self.ram_read(self.pc+2)
-        if debug: print(f'{self.pc} LDI: R{reg_num} <- {value}')
+        if debug: print(f'LDI: R{reg_num} <- {value}')
         self.reg[reg_num] = value
         self.pc += 3
     def op_ld(self, op):
@@ -256,7 +256,7 @@ class CPU:
     def op_jne(self, op): # Jump if not equal
         '''If Equal flag is clear (false, 0), jump to the 
            address stored in the given register.'''
-        if debug: print(f'{self.pc}\t JNE: LGE:{self.fl:03b}')
+        if debug: print(f'JNE: LGE:{self.fl:03b}')
         if not (self.fl & 1):
             reg_num = self.ram_read(self.pc+1)
             self.pc = self.reg[reg_num]
@@ -265,10 +265,12 @@ class CPU:
     def op_call(self, op): # Call subroutine
         '''Calls a subroutine (function) at the 
            address stored in the register.'''
+        # Push return address to stack
         self.reg[self.SP] -= 1
-        self.ram[self.reg[self.SP]] = self.pc + 2 # Push return address to stack
+        self.ram[self.reg[self.SP]] = self.pc + 2 
         reg_num = self.ram_read(self.pc+1)
-        self.pc = self.reg[reg_num] # Jump to subroutine address
+        # Jump to subroutine address
+        self.pc = self.reg[reg_num] 
         if debug: print(f'CALL: {self.pc}')
     def op_ret(self, op): # Return
         '''Pop return address and jump there'''
